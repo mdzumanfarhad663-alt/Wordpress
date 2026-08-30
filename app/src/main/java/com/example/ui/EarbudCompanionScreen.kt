@@ -74,7 +74,8 @@ fun EarbudCompanionScreen(
     bluetoothStatus: BluetoothStatus,
     onRoutingModeChange: (AudioRoutingMode) -> Unit,
     onRefreshBluetooth: () -> Unit,
-    onTestEarbudAudio: (isBanglaToEarbud: Boolean) -> Unit
+    onTestEarbudAudio: (isBanglaToEarbud: Boolean) -> Unit,
+    onOpenTestDialogue: () -> Unit = {}
 ) {
     var testFeedback by remember { mutableStateOf<String?>(null) }
 
@@ -253,6 +254,20 @@ fun EarbudCompanionScreen(
                             Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Test Speaker (EN)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Full interactive dialogue simulation button
+                    Button(
+                        onClick = onOpenTestDialogue,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SkyBlueUltraLight)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🧪 Talk in Bangla ➜ Reply in English ➜ Hear in Bangla", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SkyBlueDark)
                         }
                     }
 

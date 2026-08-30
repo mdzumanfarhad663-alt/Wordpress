@@ -117,7 +117,8 @@ fun ConversationScreen(
     onReplayAudio: (text: String, lang: String, role: String) -> Unit,
     onToggleStar: (TranslationEntity) -> Unit,
     onOpenEarbudCompanion: () -> Unit,
-    onModeChange: (ConversationMode) -> Unit
+    onModeChange: (ConversationMode) -> Unit,
+    onOpenTestDialogue: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val listState = rememberLazyListState()
@@ -141,7 +142,7 @@ fun ConversationScreen(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp)
+                .padding(vertical = 4.dp)
                 .clickable { onOpenEarbudCompanion() }
                 .testTag("earbud_status_card"),
             shape = RoundedCornerShape(24.dp),
@@ -150,7 +151,7 @@ fun ConversationScreen(
         ) {
             Row(
                 modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -158,24 +159,24 @@ fun ConversationScreen(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Box(
                         modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(16.dp))
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(14.dp))
                             .background(SkyBluePrimary)
-                            .shadow(8.dp, RoundedCornerShape(16.dp), spotColor = SkyBlueLight),
+                            .shadow(6.dp, RoundedCornerShape(14.dp), spotColor = SkyBlueLight),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Headphones,
                             contentDescription = "Bluetooth Status",
                             tint = Color.White,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
                             text = if (bluetoothStatus.isHeadsetConnected) "Connected Device" else "Target Audio Device",
-                            fontSize = 11.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = SkyBlueDark
                         )
@@ -199,6 +200,72 @@ fun ConversationScreen(
                         fontWeight = FontWeight.Bold,
                         color = if (bluetoothStatus.isHeadsetConnected) EmeraldPill else SlateMuted,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+
+        // Interactive Test Option Banner (Talk BN -> Reply EN -> Hear BN)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .clickable { onOpenTestDialogue() }
+                .testTag("test_dialogue_banner"),
+            shape = RoundedCornerShape(20.dp),
+            color = IndigoGlow.copy(alpha = 0.08f),
+            border = BorderStroke(1.2.dp, IndigoGlow.copy(alpha = 0.35f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(IndigoGlow),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "Test Option",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "TEST OPTION (TALK BN ➜ HEAR BN)",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = IndigoGlow,
+                            letterSpacing = 0.5.sp
+                        )
+                        Text(
+                            text = "Talk Bangla → Reply English → Hear Bangla",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = SlateDark
+                        )
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(50.dp),
+                    color = IndigoGlow,
+                    modifier = Modifier.padding(start = 6.dp)
+                ) {
+                    Text(
+                        text = "TEST NOW",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
             }

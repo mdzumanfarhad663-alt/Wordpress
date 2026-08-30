@@ -29,6 +29,18 @@ enum class ConversationMode {
     FACE_TO_FACE
 }
 
+data class TestDialogueState(
+    val isOpen: Boolean = false,
+    val isRunning: Boolean = false,
+    val currentStep: Int = 0, // 0: Ready, 1: Spoken Bangla, 2: Translated to English, 3: Partner English Reply, 4: Hear Bangla in Earbud, 5: Complete
+    val stepDescription: String = "Select or speak a Bangla phrase to test",
+    val spokenBanglaText: String = "",
+    val translatedEnglishText: String = "",
+    val partnerEnglishReply: String = "",
+    val partnerBanglaReply: String = "",
+    val isListeningToMic: Boolean = false
+)
+
 data class TranslationUiState(
     val conversationMode: ConversationMode = ConversationMode.DUAL_PUSH_TO_TALK,
     val isAutoLoopActive: Boolean = false,
@@ -63,6 +75,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val starredTranslations: StateFlow<List<TranslationEntity>> = translationDao.getStarredTranslations()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    private val _testDialogueState = MutableStateFlow(TestDialogueState())
+    val testDialogueState: StateFlow<TestDialogueState> = _testDialogueState.asStateFlow()
+
     val ttsHelper = TtsEngineHelper(application)
     val isSpeaking: StateFlow<Boolean> = ttsHelper.isSpeaking
 
@@ -72,15 +87,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val liveCaption: MutableStateFlow<String> = MutableStateFlow("")
 
     private var autoLoopJob: Job? = null
+    private var dialogueTestJob: Job? = null
 
     init {
         speechHelper = SpeechRecognizerHelper(
             context = application,
             onFinalText = { text, language ->
-                onSpeechRecognized(text, language)
+                if (_testDialogueState.value.isListeningToMic) {
+                    _testDialogueState.value = _testDialogueState.value.copy(isListeningToMic = false)
+                    runBanglaDialogueTest(text)
+                } else {
+                    onSpeechRecognized(text, language)
+                }
             },
             onErrorOccurred = { error ->
-                _uiState.value = _uiState.value.copy(errorBanner = error)
+                if (_testDialogueState.value.isListeningToMic) {
+                    _testDialogueState.value = _testDialogueState.value.copy(
+                        isListeningToMic = false,
+                        stepDescription = error
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(errorBanner = error)
+                }
                 isListening.value = false
                 soundLevel.value = 0f
             }
@@ -294,6 +322,169 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearErrorBanner() {
         _uiState.value = _uiState.value.copy(errorBanner = null)
+    }
+
+    fun openTestDialogue() {
+        _testDialogueState.value = _testDialogueState.value.copy(isOpen = true)
+    }
+
+    fun closeTestDialogue() {
+        dialogueTestJob?.cancel()
+        ttsHelper.stop()
+        speechHelper?.stopListening()
+        _testDialogueState.value = _testDialogueState.value.copy(
+            isOpen = false,
+            isRunning = false,
+            isListeningToMic = false
+        )
+    }
+
+    fun startTestMicBangla() {
+        ttsHelper.stop()
+        _testDialogueState.value = _testDialogueState.value.copy(
+            isListeningToMic = true,
+            stepDescription = "Listening for Bangla voice input... Speak now 🎤"
+        )
+        speechHelper?.startListening("bn")
+    }
+
+    fun stopTestMic() {
+        _testDialogueState.value = _testDialogueState.value.copy(isListeningToMic = false)
+        speechHelper?.stopListening()
+    }
+
+    fun runBanglaDialogueTest(banglaText: String) {
+        if (banglaText.isBlank()) return
+        dialogueTestJob?.cancel()
+        ttsHelper.stop()
+
+        dialogueTestJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Step 1: User says Bangla
+                _testDialogueState.value = _testDialogueState.value.copy(
+                    isOpen = true,
+                    isRunning = true,
+                    currentStep = 1,
+                    spokenBanglaText = banglaText,
+                    translatedEnglishText = "",
+                    partnerEnglishReply = "",
+                    partnerBanglaReply = "",
+                    stepDescription = "Step 1/4: You spoke in Bangla"
+                )
+                delay(700)
+
+                // Step 2: Translate user's Bangla to English
+                val enTranslation = translationService.translate(
+                    text = banglaText,
+                    sourceLang = "bn",
+                    targetLang = "en",
+                    preferOffline = _uiState.value.preferOffline
+                ).translatedText
+
+                _testDialogueState.value = _testDialogueState.value.copy(
+                    currentStep = 2,
+                    translatedEnglishText = enTranslation,
+                    stepDescription = "Step 2/4: Speaking English Translation on Phone Speaker..."
+                )
+
+                // Route to Partner (Phone Speaker) and Speak English
+                bluetoothController.routeAudioForSpeaker("PARTNER_ENGLISH")
+                ttsHelper.speak(enTranslation, "en")
+                delay(2600)
+
+                // Step 3: Partner replies in English (Conversational Engine)
+                val partnerEn = generatePartnerEnglishReply(banglaText, enTranslation)
+                _testDialogueState.value = _testDialogueState.value.copy(
+                    currentStep = 3,
+                    partnerEnglishReply = partnerEn,
+                    stepDescription = "Step 3/4: Partner is replying in English..."
+                )
+                bluetoothController.routeAudioForSpeaker("PARTNER_ENGLISH")
+                ttsHelper.speak(partnerEn, "en")
+                delay(2800)
+
+                // Step 4: Translate Partner's English to Bangla & speak into EARBUD
+                val partnerBn = translationService.translate(
+                    text = partnerEn,
+                    sourceLang = "en",
+                    targetLang = "bn",
+                    preferOffline = _uiState.value.preferOffline
+                ).translatedText
+
+                _testDialogueState.value = _testDialogueState.value.copy(
+                    currentStep = 4,
+                    partnerBanglaReply = partnerBn,
+                    stepDescription = "Step 4/4: Hearing Bangla Translation in your Earbud! 🎧"
+                )
+
+                // Route to Earbud (Bangla speaker) and Speak Bangla!
+                bluetoothController.routeAudioForSpeaker("YOU_BANGLA")
+                ttsHelper.speak(partnerBn, "bn")
+                delay(2800)
+
+                // Step 5: Test Finished
+                _testDialogueState.value = _testDialogueState.value.copy(
+                    currentStep = 5,
+                    isRunning = false,
+                    stepDescription = "Test Complete! You heard the Bangla translation in your earbud."
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Dialogue test error: ${e.message}")
+                _testDialogueState.value = _testDialogueState.value.copy(
+                    isRunning = false,
+                    stepDescription = "Test Notice: ${e.message}"
+                )
+            }
+        }
+    }
+
+    private fun generatePartnerEnglishReply(banglaText: String, enTranslation: String): String {
+        val lowerBn = banglaText.lowercase()
+        val lowerEn = enTranslation.lowercase()
+        return when {
+            lowerBn.contains("কেমন") || lowerEn.contains("how are you") ->
+                "I am doing very well, thank you! How can I help you today?"
+            lowerBn.contains("ভাড়া") || lowerBn.contains("দাম") || lowerEn.contains("how much") || lowerEn.contains("ticket") || lowerEn.contains("cost") ->
+                "The ticket costs five dollars. The next train departs in ten minutes."
+            lowerBn.contains("সাহায্য") || lowerEn.contains("help") ->
+                "Of course! Please let me know what you need, and I will gladly assist you."
+            lowerBn.contains("বিমানবন্দর") || lowerBn.contains("এয়ারপোর্ট") || lowerEn.contains("airport") ->
+                "The airport is about ten kilometers away. You can take the express shuttle bus."
+            lowerBn.contains("মেনু") || lowerBn.contains("খাবার") || lowerEn.contains("menu") || lowerEn.contains("food") ->
+                "Here is our menu. Would you like to order food or drinks first?"
+            lowerBn.contains("নাম") || lowerEn.contains("name") ->
+                "My name is Alex! It is very nice to meet you."
+            lowerBn.contains("ধন্যবাদ") || lowerEn.contains("thank") ->
+                "You are very welcome! Have a wonderful day."
+            lowerBn.contains("কোথায়") || lowerEn.contains("where") ->
+                "It is located two blocks ahead on your right side."
+            else ->
+                "Understood! I am happy to assist you with your request."
+        }
+    }
+
+    fun replayTestBanglaEarbud() {
+        val text = _testDialogueState.value.partnerBanglaReply
+        if (text.isNotBlank()) {
+            bluetoothController.routeAudioForSpeaker("YOU_BANGLA")
+            ttsHelper.speak(text, "bn")
+        }
+    }
+
+    fun replayTestEnglishSpeaker() {
+        val text = _testDialogueState.value.partnerEnglishReply
+        if (text.isNotBlank()) {
+            bluetoothController.routeAudioForSpeaker("PARTNER_ENGLISH")
+            ttsHelper.speak(text, "en")
+        }
+    }
+
+    fun replayTestUserEnglish() {
+        val text = _testDialogueState.value.translatedEnglishText
+        if (text.isNotBlank()) {
+            bluetoothController.routeAudioForSpeaker("PARTNER_ENGLISH")
+            ttsHelper.speak(text, "en")
+        }
     }
 
     override fun onCleared() {

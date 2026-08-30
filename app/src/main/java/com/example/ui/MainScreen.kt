@@ -91,6 +91,7 @@ fun MainScreen(viewModel: MainViewModel) {
     val isSpeaking by viewModel.isSpeaking.collectAsStateWithLifecycle()
     val soundLevel by viewModel.soundLevel.collectAsStateWithLifecycle()
     val liveCaption by viewModel.liveCaption.collectAsStateWithLifecycle()
+    val testDialogueState by viewModel.testDialogueState.collectAsStateWithLifecycle()
 
     var showSettingsDialog by remember { mutableStateOf(false) }
 
@@ -345,7 +346,8 @@ fun MainScreen(viewModel: MainViewModel) {
                     onReplayAudio = { text, lang, role -> viewModel.speakTranslation(text, lang, role) },
                     onToggleStar = { entity -> viewModel.toggleStarred(entity) },
                     onOpenEarbudCompanion = { viewModel.setActiveTab(2) },
-                    onModeChange = { mode -> viewModel.setConversationMode(mode) }
+                    onModeChange = { mode -> viewModel.setConversationMode(mode) },
+                    onOpenTestDialogue = { viewModel.openTestDialogue() }
                 )
 
                 1 -> FaceToFaceScreen(
@@ -371,7 +373,8 @@ fun MainScreen(viewModel: MainViewModel) {
                         } else {
                             viewModel.speakTranslation("Hello! The loudspeaker audio translation is working properly.", "en", "PARTNER_ENGLISH")
                         }
-                    }
+                    },
+                    onOpenTestDialogue = { viewModel.openTestDialogue() }
                 )
 
                 3 -> PhrasebookScreen(
@@ -382,6 +385,19 @@ fun MainScreen(viewModel: MainViewModel) {
                 )
             }
         }
+    }
+
+    if (testDialogueState.isOpen) {
+        TestDialogueDialog(
+            testState = testDialogueState,
+            onStartTestMic = { viewModel.startTestMicBangla() },
+            onStopTestMic = { viewModel.stopTestMic() },
+            onRunTestWithText = { text -> viewModel.runBanglaDialogueTest(text) },
+            onReplayUserEnglish = { viewModel.replayTestUserEnglish() },
+            onReplayPartnerEnglish = { viewModel.replayTestEnglishSpeaker() },
+            onReplayBanglaEarbud = { viewModel.replayTestBanglaEarbud() },
+            onDismiss = { viewModel.closeTestDialogue() }
+        )
     }
 
     if (showSettingsDialog) {
