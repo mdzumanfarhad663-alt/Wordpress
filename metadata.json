@@ -1,0 +1,6 @@
+{
+  "name": "Earbud AI Translator",
+  "description": "AI-powered real-time voice translator for Bluetooth earbuds between Bangla and English with hands-free conversation mode and offline support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
